@@ -28,6 +28,10 @@
 						:class="(isSpeechOn) ? 'fa-volume-up' : 'fa-volume-off'">
 					</i>
 				</label>
+
+				<button @click="playTickSound()">
+					play
+				</button>
 			</section>
 
 			<section class="match-score">
@@ -92,6 +96,10 @@
 				</button>
 			</div>
 		</div>
+
+		<dialog open>
+			Test
+		</dialog>
 	</div>
 
 	<script>
@@ -125,10 +133,6 @@
 			el: '#app',
 			data() {
 				return {
-					audio: {
-						timeTick: new Audio('audio/time_tick.mp3'), // sfx when timer close to zero
-						timeUp: new Audio('audio/time_up.mp3') // sfx when timer is finished
-					},
 					matchScore: [0,0], // current match score for both players 
 					name: ['Player 1', 'Player 2'], // names of players 
 					timerStartFrom: 15, // when using timer, this is the starting value 
@@ -267,6 +271,30 @@
 					}
 				},
 
+				playTickSound() {
+					let context = new AudioContext();
+					let o = context.createOscillator();
+					let g = context.createGain();
+					o.connect(g);
+					o.frequency.value = 440;
+					g.connect(context.destination);
+					o.start(0);
+
+					setTimeout(() => o.stop(), 100);
+				},
+
+				playEndSound() {
+					let context = new AudioContext();
+					let o = context.createOscillator();
+					let g = context.createGain();
+					o.connect(g);
+					o.frequency.value = 880;
+					g.connect(context.destination);
+					o.start(0);
+
+					setTimeout(() => o.stop(), 1000);
+				},
+
 				timerRestart() {
 					this.onTimerStop();
 					this.onTimerStart();
@@ -279,9 +307,9 @@
 							this.timeoutRef = setTimeout(this.timerTick, 1000);
 
 							if(this.timerCurrent < 6 && this.timerCurrent > 0) {
-								this.audio.timeTick.play();
+								this.playTickSound();
 							} else if(this.timerCurrent === 0) {
-								this.audio.timeUp.play();
+								this.playEndSound();
 							}
 						}
 					}
