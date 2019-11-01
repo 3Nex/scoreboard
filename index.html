@@ -35,6 +35,10 @@
 			</section>
 
 			<section>
+				<button class="control" @click="onGoFullscreen()">
+					<i class="fa fa-desktop"></i>
+				</button>
+
 				<label class="control">
 					<input type="checkbox" v-model="isTimerOn"/>
 					<i class="fa fa-hourglass"></i>
@@ -167,6 +171,14 @@
 						} else {
 							this.feedback('That name is too short');
 						}
+					}
+				},
+
+				onGoFullscreen() {
+					try {
+						document.documentElement.webkitRequestFullscreen();
+					} catch {
+						alert('Unable to go fullscreen :(');
 					}
 				},
 
