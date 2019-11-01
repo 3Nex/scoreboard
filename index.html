@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="utf-8"/>
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1"/>
+	<title>Score keeper</title>
+	<script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
+	<link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css"/>
+</head>
+<body>
+	<div id="app">
+		<nav class="toolbar">
+			<section>
+				<button class="control" 
+					@click="onUndoScore()">
+					<i class="fa fa-undo"></i>
+				</button>
+
+				<button class="control" 
+					@click="onReset()">
+					<i class="fa fa-refresh"></i>
+				</button>
+
+				<label class="control">
+					<input type="checkbox" v-model="isSpeechOn"/>
+					<i class="fa" 
+						:class="(isSpeechOn) ? 'fa-volume-up' : 'fa-volume-off'">
+					</i>
+				</label>
+			</section>
+
+			<section class="match-score">
+				{{ matchScore[0] }} : {{ matchScore[1] }}
+			</section>
+
+			<section>
+				<label class="control">
+					<input type="checkbox" v-model="isTimerOn"/>
+					<i class="fa fa-hourglass"></i>
+				</label>
+
+				<button class="control" 
+					@click="onFinishMatch()">
+					<i class="fa fa-flag-checkered"></i>
+				</button>
+			</section>
+		</nav>
+
+		<div class="score">
+			<div class="score--player-1">
+				<button class="name-container" @click="onChangeName(0)">
+					{{ name[0] }}
+				</button>
+
+				<button class="score-container" @click="onIncreaseScore(0)">
+					<span class="number">{{ score[0] }}</span>
+				</button>
+			</div>
+
+			<div v-if="(isTimerOn)" class="timer-controls">
+				<button class="control" 
+					@click="onTimerStart()">
+					<i class="fa fa-play"></i>
+				</button>
+
+				<div class="time-left"
+					:class="{ critical: (timerCurrent < 6) }">
+					{{ timerCurrent }}
+				</div>
+
+				<button class="control" @click="onTimerStop()">
+					<i class="fa fa-stop"></i>
+				</button>
+
+				<button class="control" @click="onTimerSetTime()">
+					{{ timerStartFrom }}
+				</button>
+			</div>
+
+			<div class="score--player-2">
+				<button class="name-container" @click="onChangeName(1)">
+					{{ name[1] }}
+				</button>
+
+				<button class="score-container" @click="onIncreaseScore(1)">
+					<span class="number">{{ score[1] }}</span>
+				</button>
+			</div>
+		</div>
+	</div>
+
+	<script>
+		var phrases = {
+			pointWon: [
+				'Good job %var!',
+				'Really nice %var!',
+				'Wow %var, nicely done!',
+				'Alright %var, keep up the good work!',
+				'Yes, that\'s my boy %var!',
+				'Amazing %var, keep going!',
+				'You did it %var, keep going!',
+				'Yea, one more point for my man %var!',
+				'Nice nice nice %var, very very nice',
+				'Score, one point for %var!',
+				'Damn, that was a nice point %var!',
+				'Wow %var, you\'re really good at this!',
+			],
+			matchWon: [
+				'Yes, congratulations %var!',
+				'And he does it, I can\'t believe it, amazing job %var!',
+				'I didn\'t think you could do it %var, but you did it, very nice!',
+				'Holy moly %var, that was a hell of a game!',
+				'I knew you could do it %var, very well done!', 
+				'Wow %var, I hope you\'re signing autographs outside after this amazing performance!',
+				'Holy moly %var, have my babies, this was amazing!'
+			]
+		};
+
+		new Vue({
+			el: '#app',
+			data() {
+				return {
+					audio: {
+						timeTick: new Audio('audio/time_tick.mp3'), // sfx when timer close to zero
+						timeUp: new Audio('audio/time_up.mp3') // sfx when timer is finished
+					},
+					matchScore: [0,0], // current match score for both players 
+					name: ['Player 1', 'Player 2'], // names of players 
+					timerStartFrom: 15, // when using timer, this is the starting value 
+					timerCurrent: 15, // current state of the timer countdown 
+					timeoutRef: null, // reference for the setTimeout() when ticking timer
+					score: [0,0], // current points in this match 
+					scoreHistory: [], // array of previous points in a match for undoing
+					isSpeechOn: true, // if speechSynthesis is on 
+					isTimerOn: true, // if we want timer to be used 
+					isTimerCounting: false // if timer is counting right now 
+				}
+			},
+
+			methods: {
+				feedback(message) {
+					if(this.isSpeechOn) {
+						this.speak(message);
+					} else {
+						alert(message);
+					}
+				},
+
+				getRandomPhrase(phrases, variable=null) {
+					let _phrase = phrases[Math.floor(Math.random()*phrases.length)];
+					if(variable) {
+						_phrase = _phrase.replace('%var', variable);
+					}
+					return _phrase;
+				},
+
+				onChangeName(player) {
+					let promptTxt = `Enter new name for ${this.name[player]}`;
+					let name = prompt(promptTxt, this.name[player]);
+					if(name !== null) {
+						if(name.length > 0) {
+							Vue.set(this.name, [player], name);
+							if(this.isSpeechOn) {
+								this.speak(`Name changed to ${name}`);
+							}
+						} else {
+							this.feedback('That name is too short');
+						}
+					}
+				},
+
+				onIncreaseScore(player) {
+					this.scoreHistory.push(JSON.parse(JSON.stringify(this.score)));
+					Vue.set(this.score, player, this.score[player]+1);
+					if(this.isSpeechOn) {
+						let message = this.getRandomPhrase(phrases.pointWon, this.name[player]);
+						this.speak(message);
+					}
+
+					if(this.isTimerOn) {
+						this.timerRestart();
+					}
+				},
+
+				onFinishMatch() {
+					if(confirm('Finish this match?')) {
+						// count match won for player with more points 
+						if(this.score[0] > this.score[1]) {
+							Vue.set(this.matchScore, 0, this.matchScore[0]+1);
+							if(this.isSpeechOn) {
+								let text = this.getRandomPhrase(phrases.matchWon, this.name[0]);
+								this.speak(text);
+							}
+						} else if(this.score[1] > this.score[0]) {
+							Vue.set(this.matchScore, 1, this.matchScore[1]+1);
+							if(this.isSpeechOn) {
+								let text = this.getRandomPhrase(phrases.matchWon, this.name[1]);
+								this.speak(text);
+							}
+						} else {
+							// draw, nobody gets a point. 
+							this.feedback('The match is a draw, nobody gets a point');
+						}
+
+						// reset score for new match 
+						this.score = [0,0]
+						this.scoreHistory = [];
+					}
+				},
+
+				onReset() {
+					let promptTxt = 'This will reset the point score, and the match score. Are you sure you want to continue?';
+
+					if(confirm(promptTxt)) {
+						this.scoreHistory = [];
+						this.score[0] = this.score[1] 
+							= this.matchScore[0] = this.matchScore[1]
+							= 0;
+					}
+				},
+
+				onTimerSetTime() {
+					let amount = prompt('Enter time to use for timer', this.timerStartFrom);
+					amount = parseInt(amount);
+					if(amount > 0) {
+						this.timerStartFrom = amount;
+						this.timerCurrent = amount;
+					}
+				},
+
+				onTimerStart() {
+					if(this.timerCurrent === 0) {
+						this.timerCurrent = this.timerStartFrom;
+					}
+					this.isTimerCounting = true;
+					this.timeoutRef = setTimeout(this.timerTick, 1000);
+				},
+
+				onTimerStop() {
+					this.isTimerCounting = false;
+					this.timerCurrent = this.timerStartFrom;
+					clearTimeout(this.timeoutRef);
+				},
+
+				onUndoScore() {
+					let score = this.scoreHistory.pop();
+					if(score) {
+						this.score = score;
+						if(this.isSpeechOn) {
+							this.speak('Undoing last score update');
+						}
+					} else {
+						this.feedback('Nothing to undo');
+					}
+				},
+
+				timerRestart() {
+					this.onTimerStop();
+					this.onTimerStart();
+				},
+
+				timerTick() {
+					if(this.timerCurrent > 0) {
+						this.timerCurrent--;
+						if(this.isTimerCounting) {
+							this.timeoutRef = setTimeout(this.timerTick, 1000);
+
+							if(this.timerCurrent < 6 && this.timerCurrent > 0) {
+								this.audio.timeTick.play();
+							} else if(this.timerCurrent === 0) {
+								this.audio.timeUp.play();
+							}
+						}
+					}
+				},
+
+				speak(text) {
+					let utterance = new SpeechSynthesisUtterance(text);
+					window.speechSynthesis.cancel();
+					window.speechSynthesis.speak(utterance);
+				}
+			}
+		})
+	</script>
+
+	<style>
+		body {
+			padding: 0;
+			margin: 0;
+			color: black;
+			background: white;
+			font-family: sans-serif;
+		}
+		* {
+			box-sizing: border-box;
+			-webkit-touch-callout: none;
+			-webkit-user-select: none;
+			-khtml-user-select: none;
+			-moz-user-select: none;
+			-ms-user-select: none;
+			user-select: none;
+		}
+		#app {
+			display: flex;
+			flex-direction: column;
+			height: 100vh;
+		}
+		.toolbar {
+			display: flex;
+			justify-content: space-between;
+			flex-basis: 3rem;
+			flex-grow: 0;
+			flex-shrink: 0;
+			height: 3rem;
+			font-size: 1.5rem;
+			border-bottom: 1px solid grey;
+		}
+			.toolbar > section {
+				display: flex;
+				flex-direction: row;
+				justify-content: flex-start;
+				align-items: center;
+				flex-basis: 40%;
+				flex-grow: 2;
+			}
+				.toolbar > section:last-child {
+					text-align: right;
+					justify-content: flex-end;
+				}
+			.toolbar .control {
+				position: relative;
+				padding: .75rem;
+				min-width: 3rem;
+				font-size: 1.2rem;
+				background: transparent;
+				border: none;
+			}
+				.toolbar .control input[type=checkbox] {
+					position: absolute;
+					top: 0;
+					left: 0;
+					width: 100%;
+					height: 100%;
+					opacity: 0;
+				}
+			.toolbar .match-score {
+				display: block;
+				line-height: 3rem;
+				flex-basis: 20%;
+				flex-grow: 1;
+				text-align: center;
+			}
+
+		.score {
+			display: flex;
+			flex-basis: 2;
+			flex-grow: 3;
+			flex-shrink: 0;
+		}
+		@media screen and (orientation:portrait) {
+			.score {
+				flex-direction: column;
+			}
+		}
+		.score--player-1,
+		.score--player-2 {
+			display: flex;
+			flex-direction: column;
+			flex-basis: 5rem;
+			flex-shrink: 0;
+			flex-grow: 2;
+			padding: 1rem;
+			height: 100%;
+		}
+			.name-container {
+				margin-bottom: 1rem;
+				flex-basis: 3rem;
+				flex-grow: 0;
+				flex-shrink: 0;
+				text-align: center;
+				font-size: 2rem;
+				line-height: 3rem;
+				border: 1px solid grey;
+				border-radius: .5rem;
+			}
+			.score-container {
+				position: relative;
+				display: flex;
+				width: 100%;
+				height: 100%;
+				border: 1px solid grey;
+				border-radius: .5rem;	
+			}
+			.score-container .number {
+				margin: auto;
+				font-size: 6rem;
+			}
+		.timer-controls {
+			display: flex;
+			justify-content: space-around;
+			flex-direction: column;
+			flex-basis: 3rem;
+			flex-grow: 0;
+			flex-shrink: 0;
+		}
+		@media screen and (orientation:portrait) {
+			.timer-controls {
+				flex-direction: row;
+			}
+		}
+			.time-left {
+				text-align: center;
+				font-size: 2rem;
+			}
+			.time-left.critical {
+				color: red;
+				font-weight: bold;
+			}
+			.timer-controls .control {
+				padding: 1rem;
+				border: 1px solid black;
+				color: black;
+				background: grey;
+				border-radius: .5rem;
+			}
+	</style>
+</body>
+</html>
