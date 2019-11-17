@@ -135,7 +135,7 @@
 			el: '#app',
 			data() {
 				return {
-					isSpeechOn: true, // if speechSynthesis is on 
+					isSpeechOn: false, // if speechSynthesis is on 
 					isTimerOn: false, // if we want timer to be used 
 					isTimerCounting: false, // if timer is counting right now 
 					matchScore: [0,0], // current match score for both players 
@@ -227,6 +227,7 @@
 						// reset score for new match 
 						this.score = [0,0]
 						this.scoreHistory = [];
+						this.onTimerStop();
 					}
 				},
 
