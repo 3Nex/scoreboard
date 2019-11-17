@@ -35,6 +35,10 @@
 			</section>
 
 			<section>
+				<button class="control" @click="onSwitchBreak()">
+					<i class="fa fa-exchange"></i>	
+				</button>
+
 				<button class="control" @click="onGoFullscreen()">
 					<i class="fa fa-desktop"></i>
 				</button>
@@ -59,6 +63,9 @@
 
 				<button class="score-container" @click="onIncreaseScore(0)">
 					<span class="number">{{ score[0] }}</span>
+					<span class="break-indicator" v-if="(playerBreaking===0)">
+						<i class="fa fa-circle"></i>
+					</span>
 				</button>
 			</div>
 
@@ -89,6 +96,9 @@
 
 				<button class="score-container" @click="onIncreaseScore(1)">
 					<span class="number">{{ score[1] }}</span>
+					<span class="break-indicator" v-if="(playerBreaking===1)">
+						<i class="fa fa-circle"></i>
+					</span>
 				</button>
 			</div>
 		</div>
@@ -125,16 +135,17 @@
 			el: '#app',
 			data() {
 				return {
+					isSpeechOn: true, // if speechSynthesis is on 
+					isTimerOn: false, // if we want timer to be used 
+					isTimerCounting: false, // if timer is counting right now 
 					matchScore: [0,0], // current match score for both players 
 					name: ['Player 1', 'Player 2'], // names of players 
+					playerBreaking: 0, // which player is currently on break
+					score: [0,0], // current points in this match 
+					scoreHistory: [], // array of previous points in a match for undoing
 					timerStartFrom: 15, // when using timer, this is the starting value 
 					timerCurrent: 15, // current state of the timer countdown 
 					timeoutRef: null, // reference for the setTimeout() when ticking timer
-					score: [0,0], // current points in this match 
-					scoreHistory: [], // array of previous points in a match for undoing
-					isSpeechOn: true, // if speechSynthesis is on 
-					isTimerOn: false, // if we want timer to be used 
-					isTimerCounting: false // if timer is counting right now 
 				}
 			},
 
@@ -172,7 +183,7 @@
 
 				onGoFullscreen() {
 					try {
-						document.documentElement.webkitRequestFullscreen();
+						document.documentElement.requestFullscreen();
 					} catch {
 						alert('Unable to go fullscreen :(');
 					}
@@ -189,6 +200,8 @@
 					if(this.isTimerOn) {
 						this.timerRestart();
 					}
+
+					this.onSwitchBreak();
 				},
 
 				onFinishMatch() {
@@ -226,6 +239,10 @@
 							= this.matchScore[0] = this.matchScore[1]
 							= 0;
 					}
+				},
+
+				onSwitchBreak() {
+					this.playerBreaking = (this.playerBreaking + 1) % 2;
 				},
 
 				onTimerSetTime() {
@@ -353,8 +370,9 @@
 				flex-direction: row;
 				justify-content: flex-start;
 				align-items: center;
-				flex-basis: 40%;
+				/*flex-basis: 40%;*/
 				flex-grow: 2;
+				flex-shrink: 0;
 			}
 				.toolbar > section:last-child {
 					text-align: right;
@@ -363,7 +381,7 @@
 			.toolbar .control {
 				position: relative;
 				padding: .75rem;
-				min-width: 3rem;
+				/*min-width: 3rem;*/
 				font-size: 1.2rem;
 				background: transparent;
 				border: none;
@@ -379,8 +397,8 @@
 			.toolbar .match-score {
 				display: block;
 				line-height: 3rem;
-				flex-basis: 20%;
-				flex-grow: 1;
+				/*flex-basis: 20%;*/
+				/*flex-grow: 1;*/
 				text-align: center;
 			}
 
@@ -427,6 +445,12 @@
 			.score-container .number {
 				margin: auto;
 				font-size: 6rem;
+			}
+			.score-container .break-indicator {
+				position: absolute;
+				top: 1em;
+				left: 1em;
+				font-size: 2em;
 			}
 		.timer-controls {
 			display: flex;
